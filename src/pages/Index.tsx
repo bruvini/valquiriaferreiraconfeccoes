@@ -1,20 +1,64 @@
 import { SummaryCard } from '@/components/dashboard/SummaryCard';
 import { useServicos } from '@/hooks/useServicos';
 import { usePagamentos } from '@/hooks/usePagamentos';
-import { DollarSign, TrendingUp, Users, ArrowRight, Play, CheckCircle } from 'lucide-react';
+import { DollarSign, TrendingUp, Users, ArrowRight, Play, CheckCircle, Filter, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { Servico } from '@/types';
+import { useState } from 'react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 const Index = () => {
-  const { totalAReceber, producaoTotal, servicos, loading: loadingServicos, updateServicoStatus } = useServicos();
-  const { totalDespesas, loading: loadingPagamentos } = usePagamentos();
+  const { servicos, loading: loadingServicos, updateServicoStatus } = useServicos();
+  const { pagamentos, loading: loadingPagamentos } = usePagamentos();
   const navigate = useNavigate();
+
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   const loading = loadingServicos || loadingPagamentos;
 
-  const filaEspera = servicos.filter(s => s.status === 'PENDENTE');
-  const emProducao = servicos.filter(s => s.status === 'EM_ANDAMENTO');
+  // Filtering Logic
+  const getFilteredData = () => {
+    let filteredServicos = servicos;
+    let filteredPagamentos = pagamentos;
+
+    if (startDate && endDate) {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      // Adjust end date to include the full day
+      end.setHours(23, 59, 59, 999);
+
+      filteredServicos = servicos.filter(s => {
+        if (!s.data_entrada) return false;
+        const date = s.data_entrada.toDate();
+        return date >= start && date <= end;
+      });
+
+      filteredPagamentos = pagamentos.filter(p => {
+        if (!p.data_trabalho) return false;
+        const date = p.data_trabalho.toDate();
+        return date >= start && date <= end;
+      });
+    }
+
+    return { filteredServicos, filteredPagamentos };
+  };
+
+  const { filteredServicos, filteredPagamentos } = getFilteredData();
+
+  // Recalculate Totals based on filtered data
+  const totalAReceber = filteredServicos
+    .filter(s => s.status !== 'CONCLUIDO')
+    .reduce((acc, s) => acc + s.valor_total_lote, 0);
+
+  const producaoTotal = filteredServicos.reduce((acc, s) => acc + s.valor_total_lote, 0);
+
+  const totalDespesas = filteredPagamentos.reduce((acc, p) => acc + p.valor_pago, 0);
+
+  const filaEspera = filteredServicos.filter(s => s.status === 'PENDENTE');
+  const emProducao = filteredServicos.filter(s => s.status === 'EM_ANDAMENTO');
 
   const handleStartService = async (id: string) => {
     await updateServicoStatus(id, 'EM_ANDAMENTO');
@@ -22,6 +66,11 @@ const Index = () => {
 
   const handleFinishService = async (id: string) => {
     await updateServicoStatus(id, 'CONCLUIDO');
+  };
+
+  const clearFilter = () => {
+    setStartDate('');
+    setEndDate('');
   };
 
   const ServiceCard = ({ servico, action }: { servico: Servico; action: 'start' | 'finish' }) => {
@@ -69,7 +118,7 @@ const Index = () => {
   };
 
   return (
-    <div className="pb-24">
+    <div className="pb-24 overflow-x-hidden">
       {/* Welcome Section */}
       <div className="mb-6 animate-fade-in">
         <h2 className="text-2xl font-serif font-bold text-foreground">
@@ -80,43 +129,72 @@ const Index = () => {
         </p>
       </div>
 
-      {/* Summary Cards - Horizontal Scroll */}
-      <div className="flex flex-row gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide -mx-4 px-4 mb-8">
+      {/* Date Filter Section */}
+      <div className="mb-6 bg-card border border-border rounded-xl p-4 shadow-soft">
+        <div className="flex items-center gap-2 mb-3 text-copper font-medium">
+          <Filter className="w-4 h-4" />
+          <span>Filtrar por Período</span>
+        </div>
+        <div className="flex flex-col md:flex-row gap-3 items-end">
+          <div className="w-full">
+             <Label htmlFor="startDate" className="text-xs mb-1 block text-muted-foreground">De</Label>
+             <Input
+                id="startDate"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full"
+             />
+          </div>
+          <div className="w-full">
+             <Label htmlFor="endDate" className="text-xs mb-1 block text-muted-foreground">Até</Label>
+             <Input
+                id="endDate"
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full"
+             />
+          </div>
+          {(startDate || endDate) && (
+            <Button variant="ghost" onClick={clearFilter} className="w-full md:w-auto text-muted-foreground">
+              <X className="w-4 h-4 mr-2" /> Limpar
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Summary Cards - Vertical Stack Mobile / Grid Desktop */}
+      <div className="flex flex-col gap-4 w-full md:grid md:grid-cols-3 mb-8">
         {loading ? (
           <>
-            <div className="h-28 min-w-[280px] bg-muted rounded-2xl animate-pulse flex-shrink-0 snap-start" />
-            <div className="h-28 min-w-[280px] bg-muted rounded-2xl animate-pulse flex-shrink-0 snap-start" />
-            <div className="h-28 min-w-[280px] bg-muted rounded-2xl animate-pulse flex-shrink-0 snap-start" />
+            <div className="h-28 w-full bg-muted rounded-2xl animate-pulse" />
+            <div className="h-28 w-full bg-muted rounded-2xl animate-pulse" />
+            <div className="h-28 w-full bg-muted rounded-2xl animate-pulse" />
           </>
         ) : (
           <>
-            <div className="min-w-[280px] flex-shrink-0 snap-start">
-              <SummaryCard
-                title="Serviços a Receber"
-                value={totalAReceber}
-                icon={DollarSign}
-                variant="gold"
-                subtitle="Pendentes + Em produção"
-              />
-            </div>
-            <div className="min-w-[280px] flex-shrink-0 snap-start">
-              <SummaryCard
-                title="Produção Total (Receita)"
-                value={producaoTotal}
-                icon={TrendingUp}
-                variant="copper"
-                subtitle="Todos os serviços"
-              />
-            </div>
-            <div className="min-w-[280px] flex-shrink-0 snap-start">
-              <SummaryCard
-                title="Despesas com Ajudantes"
-                value={totalDespesas}
-                icon={Users}
-                variant="neutral"
-                subtitle="Total de diárias"
-              />
-            </div>
+            <SummaryCard
+              title="Serviços a Receber"
+              value={totalAReceber}
+              icon={DollarSign}
+              variant="gold"
+              subtitle="Pendentes + Em produção"
+            />
+            <SummaryCard
+              title="Produção Total (Receita)"
+              value={producaoTotal}
+              icon={TrendingUp}
+              variant="copper"
+              subtitle="Todos os serviços"
+            />
+            <SummaryCard
+              title="Despesas com Ajudantes"
+              value={totalDespesas}
+              icon={Users}
+              variant="neutral"
+              subtitle="Total de diárias"
+            />
           </>
         )}
       </div>
@@ -150,7 +228,7 @@ const Index = () => {
             Em Produção ({emProducao.length})
         </h3>
         {emProducao.length === 0 ? (
-            <p className="text-muted-foreground text-sm italic">Nenhum serviço em andamento no momento.</p>
+            <p className="text-muted-foreground text-sm italic">Nenhum serviço em andamento no período selecionado.</p>
         ) : (
             emProducao.map(servico => (
                 <ServiceCard key={servico.id} servico={servico} action="finish" />
