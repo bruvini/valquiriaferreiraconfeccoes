@@ -7,7 +7,7 @@ const NovoServico = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="pb-24">
+    <div className="pb-24 w-full max-w-full px-4 overflow-x-hidden">
       <div className="flex items-center gap-3 mb-6">
         <Button 
           variant="ghost" 
