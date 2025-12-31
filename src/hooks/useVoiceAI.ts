@@ -53,11 +53,20 @@ export function useVoiceAI() {
       const response = await result.response;
       const text = response.text();
 
-      const parsed = JSON.parse(text) as ParsedService;
+      // Fix: Clean markdown code blocks if present before parsing
+      const cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+
+      const parsed = JSON.parse(cleanedText) as ParsedService;
       return parsed;
 
     } catch (err) {
-      console.error('Error processing with Gemini:', err);
+      console.error('Erro bruto da IA:', err);
+      // If the error was parsing, we might want to log the text we tried to parse
+      // We can't access 'text' easily here if the error was upstream, but if it was JSON.parse:
+      // We can assume 'err' might give clues.
+      // Ideally we would log the 'text' variable but it's scoped in the try block.
+      // For debug purposes, let's just log what we have.
+
       setError('Erro ao processar o áudio com IA.');
       return null;
     } finally {
