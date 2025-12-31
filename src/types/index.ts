@@ -11,7 +11,14 @@ export interface Servico {
   valor_unitario: number;
   valor_total_lote: number;
   data_entrada: Timestamp;
-  status: 'Pendente' | 'Em Produção' | 'Entregue/Faturado';
+  // New fields
+  numero_op?: string;
+  data_chegada?: string; // Storing as string from date input (YYYY-MM-DD)
+  data_inicio?: Timestamp | null;
+  data_conclusao?: Timestamp | null;
+  foto_op_url?: string | null;
+
+  status: 'PENDENTE' | 'EM_ANDAMENTO' | 'CONCLUIDO';
   observacoes?: string;
 }
 
@@ -22,4 +29,4 @@ export interface PagamentoAjudante {
   valor_pago: number;
 }
 
-export type StatusServico = 'Pendente' | 'Em Produção' | 'Entregue/Faturado';
+export type StatusServico = 'PENDENTE' | 'EM_ANDAMENTO' | 'CONCLUIDO';

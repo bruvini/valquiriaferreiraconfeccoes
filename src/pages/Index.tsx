@@ -1,18 +1,72 @@
 import { SummaryCard } from '@/components/dashboard/SummaryCard';
 import { useServicos } from '@/hooks/useServicos';
 import { usePagamentos } from '@/hooks/usePagamentos';
-import { DollarSign, TrendingUp, Users, ArrowRight } from 'lucide-react';
+import { DollarSign, TrendingUp, Users, ArrowRight, Play, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
+import { Servico } from '@/types';
 
 const Index = () => {
-  const { totalAReceber, producaoTotal, servicos, loading: loadingServicos } = useServicos();
+  const { totalAReceber, producaoTotal, servicos, loading: loadingServicos, updateServicoStatus } = useServicos();
   const { totalDespesas, loading: loadingPagamentos } = usePagamentos();
   const navigate = useNavigate();
 
   const loading = loadingServicos || loadingPagamentos;
 
-  const recentServicos = servicos.slice(0, 3);
+  const filaEspera = servicos.filter(s => s.status === 'PENDENTE');
+  const emProducao = servicos.filter(s => s.status === 'EM_ANDAMENTO');
+
+  const handleStartService = async (id: string) => {
+    await updateServicoStatus(id, 'EM_ANDAMENTO');
+  };
+
+  const handleFinishService = async (id: string) => {
+    await updateServicoStatus(id, 'CONCLUIDO');
+  };
+
+  const ServiceCard = ({ servico, action }: { servico: Servico; action: 'start' | 'finish' }) => {
+    const isStart = action === 'start';
+
+    return (
+      <div className="bg-card border border-border rounded-xl p-4 shadow-soft mb-3">
+        <div className="flex justify-between items-start mb-2">
+          <div>
+            <h4 className="font-medium text-foreground">{servico.fornecedor}</h4>
+            <p className="text-sm text-copper">{servico.tipo_peca}</p>
+            {servico.numero_op && <p className="text-xs text-muted-foreground mt-1">OP: {servico.numero_op}</p>}
+          </div>
+          <div className="text-right">
+             <p className="font-serif font-bold text-gold">
+              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(servico.valor_total_lote)}
+            </p>
+            <p className="text-xs text-muted-foreground">{servico.quantidade_total} peças</p>
+          </div>
+        </div>
+
+        {servico.foto_op_url && (
+             <div className="mb-3">
+                 <img src={servico.foto_op_url} alt="OP" className="h-20 w-auto rounded-md object-cover border border-border" />
+             </div>
+        )}
+
+        <Button
+          variant={isStart ? "outline" : "gold"}
+          className="w-full mt-2"
+          onClick={() => isStart ? handleStartService(servico.id!) : handleFinishService(servico.id!)}
+        >
+          {isStart ? (
+            <>
+              <Play className="w-4 h-4 mr-2" /> Iniciar Produção
+            </>
+          ) : (
+            <>
+              <CheckCircle className="w-4 h-4 mr-2" /> Finalizar Serviço
+            </>
+          )}
+        </Button>
+      </div>
+    );
+  };
 
   return (
     <div className="pb-24">
@@ -89,68 +143,36 @@ const Index = () => {
         </Button>
       </div>
 
-      {/* Recent Services */}
-      {recentServicos.length > 0 && (
-        <div className="animate-slide-up" style={{ animationDelay: '200ms' }}>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-lg font-serif font-semibold text-copper">
-              Últimos Serviços
-            </h3>
-            <Button 
-              variant="link" 
-              className="text-copper p-0 h-auto"
-              onClick={() => navigate('/servicos')}
-            >
-              Ver todos
-              <ArrowRight className="w-4 h-4 ml-1" />
-            </Button>
-          </div>
+      {/* Em Produção Section */}
+      <div className="mb-8">
+        <h3 className="text-lg font-serif font-semibold text-gold mb-3 flex items-center gap-2">
+            <TrendingUp className="w-5 h-5" />
+            Em Produção ({emProducao.length})
+        </h3>
+        {emProducao.length === 0 ? (
+            <p className="text-muted-foreground text-sm italic">Nenhum serviço em andamento no momento.</p>
+        ) : (
+            emProducao.map(servico => (
+                <ServiceCard key={servico.id} servico={servico} action="finish" />
+            ))
+        )}
+      </div>
 
-          <div className="space-y-3">
-            {recentServicos.map((servico) => (
-              <div 
-                key={servico.id} 
-                className="bg-card border border-border rounded-xl p-4 shadow-soft"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-foreground">{servico.fornecedor}</p>
-                    <p className="text-sm text-copper">{servico.tipo_peca}</p>
-                  </div>
-                  <p className="text-lg font-bold font-serif text-gold">
-                    {new Intl.NumberFormat('pt-BR', { 
-                      style: 'currency', 
-                      currency: 'BRL' 
-                    }).format(servico.valor_total_lote)}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Fila de Espera Section */}
+      <div className="mb-8">
+        <h3 className="text-lg font-serif font-semibold text-copper mb-3 flex items-center gap-2">
+            <Users className="w-5 h-5" />
+            Fila de Espera ({filaEspera.length})
+        </h3>
+        {filaEspera.length === 0 ? (
+            <p className="text-muted-foreground text-sm italic">Sua fila de espera está vazia.</p>
+        ) : (
+            filaEspera.map(servico => (
+                <ServiceCard key={servico.id} servico={servico} action="start" />
+            ))
+        )}
+      </div>
 
-      {/* Empty State */}
-      {!loading && servicos.length === 0 && (
-        <div className="text-center py-12 animate-fade-in">
-          <div className="w-20 h-20 rounded-full bg-accent mx-auto mb-4 flex items-center justify-center">
-            <DollarSign className="w-10 h-10 text-copper" />
-          </div>
-          <h3 className="text-xl font-serif font-semibold text-foreground mb-2">
-            Comece agora!
-          </h3>
-          <p className="text-muted-foreground mb-6 max-w-xs mx-auto">
-            Registre seu primeiro serviço e acompanhe tudo pelo app.
-          </p>
-          <Button 
-            variant="gold" 
-            size="lg"
-            onClick={() => navigate('/novo-servico')}
-          >
-            Registrar Primeiro Serviço
-          </Button>
-        </div>
-      )}
     </div>
   );
 };

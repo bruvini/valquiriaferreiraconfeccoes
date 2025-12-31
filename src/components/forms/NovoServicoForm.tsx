@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,9 +8,13 @@ import { useServicos } from '@/hooks/useServicos';
 import { useToast } from '@/hooks/use-toast';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 import { useVoiceAI } from '@/hooks/useVoiceAI';
-import { Package, Calculator, Mic, MicOff, Loader2, Sparkles } from 'lucide-react';
+import { Package, Calculator, Mic, MicOff, Loader2, Sparkles, Camera, Image as ImageIcon } from 'lucide-react';
+import { storage } from '@/lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 export function NovoServicoForm() {
+  const [numeroOP, setNumeroOP] = useState('');
+  const [dataChegada, setDataChegada] = useState(new Date().toISOString().split('T')[0]);
   const [fornecedor, setFornecedor] = useState('');
   const [cliente, setCliente] = useState('');
   const [tipoPeca, setTipoPeca] = useState('');
@@ -19,7 +23,10 @@ export function NovoServicoForm() {
   const [quantidade, setQuantidade] = useState('');
   const [valorUnitario, setValorUnitario] = useState('');
   const [observacoes, setObservacoes] = useState('');
+  const [fotoOP, setFotoOP] = useState<File | null>(null);
+  const [fotoPreview, setFotoPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { addServico } = useServicos();
   const { toast } = useToast();
@@ -36,20 +43,11 @@ export function NovoServicoForm() {
   }, [isListening, transcript]);
 
   const handleProcessVoice = async (text: string) => {
-    // Check for API Key first (UI feedback requirement)
-    if (!import.meta.env.VITE_GEMINI_API_KEY) {
-      toast({
-        title: "Erro de Configuração",
-        description: "Chave da API Gemini não encontrada no ambiente.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     const result = await processTranscript(text);
     
     if (result) {
       // Fill form fields with AI results
+      if (result.numero_op) setNumeroOP(result.numero_op);
       if (result.fornecedor) setFornecedor(result.fornecedor);
       if (result.cliente) setCliente(result.cliente);
       if (result.tipo_peca) setTipoPeca(result.tipo_peca);
@@ -81,19 +79,18 @@ export function NovoServicoForm() {
   };
 
   const handleVoiceClick = () => {
-    if (!import.meta.env.VITE_GEMINI_API_KEY) {
-      toast({
-        title: "Erro de Configuração",
-        description: "Chave da API Gemini não encontrada no ambiente.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     if (isListening) {
       stopListening();
     } else {
       startListening();
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setFotoOP(file);
+      setFotoPreview(URL.createObjectURL(file));
     }
   };
 
@@ -120,7 +117,17 @@ export function NovoServicoForm() {
 
     setLoading(true);
     try {
+      let fotoUrl = null;
+
+      if (fotoOP) {
+        const storageRef = ref(storage, `ordens_producao/${Date.now()}_${fotoOP.name}`);
+        const snapshot = await uploadBytes(storageRef, fotoOP);
+        fotoUrl = await getDownloadURL(snapshot.ref);
+      }
+
       await addServico({
+        numero_op: numeroOP,
+        data_chegada: dataChegada,
         fornecedor,
         cliente,
         tipo_peca: tipoPeca,
@@ -128,8 +135,9 @@ export function NovoServicoForm() {
         detalhe_tamanhos: detalheTamanhos,
         quantidade_total: quantidadeNum,
         valor_unitario: valorNum,
-        status: 'Pendente',
+        status: 'PENDENTE',
         observacoes,
+        foto_op_url: fotoUrl,
       });
       
       toast({
@@ -139,6 +147,7 @@ export function NovoServicoForm() {
       
       navigate('/');
     } catch (error) {
+        console.error(error);
       toast({
         title: "Erro ao salvar",
         description: "Tente novamente.",
@@ -204,6 +213,60 @@ export function NovoServicoForm() {
         </div>
         <div className="relative flex justify-center text-xs uppercase">
           <span className="bg-background px-2 text-muted-foreground">ou preencha manualmente</span>
+        </div>
+      </div>
+
+       {/* Dados Iniciais */}
+       <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="numeroOP" className="text-base font-medium text-copper">
+            Número da OP
+          </Label>
+          <Input
+            id="numeroOP"
+            placeholder="Ex: 12345"
+            value={numeroOP}
+            onChange={(e) => setNumeroOP(e.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="dataChegada" className="text-base font-medium text-copper">
+            Data de Chegada
+          </Label>
+          <Input
+            id="dataChegada"
+            type="date"
+            value={dataChegada}
+            onChange={(e) => setDataChegada(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* Foto Upload */}
+      <div className="space-y-2">
+        <Label className="text-base font-medium text-copper">Foto da Ordem de Produção</Label>
+        <div
+            className="border-2 border-dashed border-muted-foreground/25 rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-muted/50 transition-colors"
+            onClick={() => fileInputRef.current?.click()}
+        >
+            <Input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                accept="image/*"
+                capture="environment"
+                onChange={handleFileChange}
+            />
+            {fotoPreview ? (
+                <div className="relative w-full aspect-video rounded-lg overflow-hidden">
+                    <img src={fotoPreview} alt="Preview" className="w-full h-full object-cover" />
+                </div>
+            ) : (
+                <>
+                    <Camera className="w-8 h-8 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">Toque para tirar foto ou enviar arquivo</span>
+                </>
+            )}
         </div>
       </div>
 
