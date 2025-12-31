@@ -10,8 +10,6 @@ import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 import { useVoiceAI } from '@/hooks/useVoiceAI';
 import { Package, Calculator, Mic, MicOff, Loader2, Sparkles } from 'lucide-react';
 
-const OPENAI_KEY_STORAGE = 'valquiria_openai_key';
-
 export function NovoServicoForm() {
   const [fornecedor, setFornecedor] = useState('');
   const [cliente, setCliente] = useState('');
@@ -22,8 +20,6 @@ export function NovoServicoForm() {
   const [valorUnitario, setValorUnitario] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [loading, setLoading] = useState(false);
-  const [apiKey, setApiKey] = useState('');
-  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
 
   const { addServico } = useServicos();
   const { toast } = useToast();
@@ -32,23 +28,25 @@ export function NovoServicoForm() {
   const { isListening, transcript, error: speechError, startListening, stopListening } = useSpeechRecognition();
   const { isProcessing, error: aiError, processTranscript } = useVoiceAI();
 
-  // Load API key from localStorage on mount
-  useEffect(() => {
-    const savedKey = localStorage.getItem(OPENAI_KEY_STORAGE);
-    if (savedKey) {
-      setApiKey(savedKey);
-    }
-  }, []);
-
   // Process transcript when listening stops and we have text
   useEffect(() => {
-    if (!isListening && transcript && apiKey) {
+    if (!isListening && transcript) {
       handleProcessVoice(transcript);
     }
   }, [isListening, transcript]);
 
   const handleProcessVoice = async (text: string) => {
-    const result = await processTranscript(text, apiKey);
+    // Check for API Key first (UI feedback requirement)
+    if (!import.meta.env.VITE_GEMINI_API_KEY) {
+      toast({
+        title: "Erro de Configuração",
+        description: "Chave da API Gemini não encontrada no ambiente.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const result = await processTranscript(text);
     
     if (result) {
       // Fill form fields with AI results
@@ -59,31 +57,35 @@ export function NovoServicoForm() {
       if (result.observacoes) setObservacoes(result.observacoes);
       if (result.preco_unitario) setValorUnitario(result.preco_unitario.toString().replace('.', ','));
       
-      // Process sizes
-      if (result.tamanhos && result.tamanhos.length > 0) {
-        const tamanhosText = result.tamanhos
-          .map(t => `${t.quantidade} ${t.tamanho}`)
-          .join(', ');
-        setDetalheTamanhos(tamanhosText);
-        
-        // Calculate total quantity
-        const totalQtd = result.tamanhos.reduce((sum, t) => sum + t.quantidade, 0);
-        setQuantidade(totalQtd.toString());
+      // Process sizes (now a string directly from AI)
+      if (result.tamanhos) {
+        setDetalheTamanhos(result.tamanhos);
+      }
+
+      // Quantity (now a number directly from AI)
+      if (result.quantidade) {
+        setQuantidade(result.quantidade.toString());
       }
 
       toast({
         title: "Formulário preenchido!",
         description: "Confira os dados e ajuste se necessário.",
       });
+    } else if (aiError) {
+        toast({
+            title: "Erro na IA",
+            description: aiError,
+            variant: "destructive"
+        });
     }
   };
 
   const handleVoiceClick = () => {
-    if (!apiKey) {
-      setShowApiKeyInput(true);
+    if (!import.meta.env.VITE_GEMINI_API_KEY) {
       toast({
-        title: "Chave da OpenAI necessária",
-        description: "Configure sua chave de API para usar o recurso de voz.",
+        title: "Erro de Configuração",
+        description: "Chave da API Gemini não encontrada no ambiente.",
+        variant: "destructive",
       });
       return;
     }
@@ -92,17 +94,6 @@ export function NovoServicoForm() {
       stopListening();
     } else {
       startListening();
-    }
-  };
-
-  const handleSaveApiKey = () => {
-    if (apiKey.trim()) {
-      localStorage.setItem(OPENAI_KEY_STORAGE, apiKey.trim());
-      setShowApiKeyInput(false);
-      toast({
-        title: "Chave salva!",
-        description: "Agora você pode usar o preenchimento por voz.",
-      });
     }
   };
 
@@ -205,30 +196,6 @@ export function NovoServicoForm() {
           </div>
         )}
       </div>
-
-      {/* API Key Input (shown when needed) */}
-      {showApiKeyInput && (
-        <div className="bg-muted rounded-xl p-4 space-y-3 animate-fade-in">
-          <Label className="text-sm text-copper">Chave da API OpenAI</Label>
-          <Input
-            type="password"
-            placeholder="sk-..."
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-          />
-          <div className="flex gap-2">
-            <Button type="button" variant="gold" size="sm" onClick={handleSaveApiKey}>
-              Salvar Chave
-            </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => setShowApiKeyInput(false)}>
-              Cancelar
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Sua chave fica salva apenas neste dispositivo.
-          </p>
-        </div>
-      )}
 
       {/* Divider */}
       <div className="relative py-2">
