@@ -47,6 +47,8 @@ export function useServicos() {
         ...servico,
         valor_total_lote,
         data_entrada: Timestamp.now(),
+        // Ensure defaults for new fields if not provided (though optional in type)
+        status: 'PENDENTE',
       });
     } catch (err) {
       console.error('Error adding servico:', err);
@@ -56,7 +58,15 @@ export function useServicos() {
 
   const updateServicoStatus = async (id: string, status: StatusServico) => {
     try {
-      await updateDoc(doc(db, 'servicos', id), { status });
+      const updateData: any = { status };
+
+      if (status === 'EM_ANDAMENTO') {
+        updateData.data_inicio = Timestamp.now();
+      } else if (status === 'CONCLUIDO') {
+        updateData.data_conclusao = Timestamp.now();
+      }
+
+      await updateDoc(doc(db, 'servicos', id), updateData);
     } catch (err) {
       console.error('Error updating servico:', err);
       throw new Error('Erro ao atualizar serviço');
@@ -74,7 +84,7 @@ export function useServicos() {
 
   // Cálculos para o Dashboard
   const totalAReceber = servicos
-    .filter(s => s.status !== 'Entregue/Faturado')
+    .filter(s => s.status !== 'CONCLUIDO')
     .reduce((acc, s) => acc + s.valor_total_lote, 0);
 
   const producaoTotal = servicos.reduce((acc, s) => acc + s.valor_total_lote, 0);

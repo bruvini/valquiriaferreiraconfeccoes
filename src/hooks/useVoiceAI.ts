@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 interface ParsedService {
+  numero_op: string | null;
   fornecedor: string | null;
   cliente: string | null;
   tipo_peca: string | null;
@@ -20,7 +21,8 @@ export function useVoiceAI() {
     setIsProcessing(true);
     setError(null);
 
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    // Hardcoded API key for testing environment as requested
+    const apiKey = "AIzaSyAThGsUbxHVPIKnEFlCacARZkQtrJnOsVE";
 
     if (!apiKey) {
       setError('Chave de API do Gemini não configurada.');
@@ -34,12 +36,23 @@ export function useVoiceAI() {
         generationConfig: { responseMimeType: "application/json" }
       });
 
-      const prompt = `Analise o texto e extraia um JSON estrito com as chaves: cliente (string), fornecedor (string), tipo_peca (string), tipo_tecido (string), tamanhos (string ex: '2 P, 3 M'), quantidade (number total), preco_unitario (number), observacoes (string). Texto: "${transcript}"`;
+      const prompt = `Analise o texto e extraia um JSON estrito com as chaves:
+      - numero_op (string, procure por "ordem de produção X", "OP X", "número X"),
+      - cliente (string),
+      - fornecedor (string),
+      - tipo_peca (string),
+      - tipo_tecido (string),
+      - tamanhos (string ex: '2 P, 3 M'),
+      - quantidade (number total),
+      - preco_unitario (number),
+      - observacoes (string).
+
+      Texto: "${transcript}"`;
 
       const result = await model.generateContent(prompt);
       const response = await result.response;
       const text = response.text();
-      
+
       const parsed = JSON.parse(text) as ParsedService;
       return parsed;
 
