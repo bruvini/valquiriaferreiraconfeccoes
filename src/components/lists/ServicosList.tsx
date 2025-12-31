@@ -21,7 +21,6 @@ const statusConfig: Record<string, { label: string; className: string }> = {
     label: 'Entregue',
     className: 'bg-emerald-100 text-emerald-800 border-emerald-200'
   },
-  // Fallback for legacy data
   'Pendente': { 
     label: 'Pendente', 
     className: 'bg-amber-100 text-amber-800 border-amber-200' 
@@ -36,7 +35,6 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   },
 };
 
-// Default config if status is completely unknown
 const unknownStatusConfig = {
   label: 'Desconhecido',
   className: 'bg-gray-100 text-gray-800 border-gray-200'
@@ -69,14 +67,30 @@ export function ServicosList() {
   const formatCurrency = (value: number) => 
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
+  const formatTamanhos = (tamanhos: Record<string, number> | string | undefined) => {
+    if (!tamanhos) return null;
+    if (typeof tamanhos === 'string') return tamanhos; // Legacy support
+
+    // Sort keys based on standard sizes if possible, or just keys
+    const order = ['PP', 'P', 'M', 'G', 'GG', 'EXG'];
+    const entries = Object.entries(tamanhos).filter(([_, qty]) => qty > 0);
+
+    entries.sort((a, b) => {
+      const idxA = order.indexOf(a[0]);
+      const idxB = order.indexOf(b[0]);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      return a[0].localeCompare(b[0]);
+    });
+
+    return entries.map(([size, qty]) => `${qty} ${size}`).join(', ');
+  };
+
   const cycleStatus = (currentStatus: string, id: string) => {
-    // Determine the next status based on the current one
-    // We map old status to new ones if necessary
     let normalizedStatus: StatusServico = 'PENDENTE';
 
     if (currentStatus === 'Em Produção' || currentStatus === 'EM_ANDAMENTO') normalizedStatus = 'EM_ANDAMENTO';
     else if (currentStatus === 'Entregue/Faturado' || currentStatus === 'CONCLUIDO') normalizedStatus = 'CONCLUIDO';
-    else normalizedStatus = 'PENDENTE'; // Default or 'Pendente'
+    else normalizedStatus = 'PENDENTE';
 
     const currentIndex = statusOptions.indexOf(normalizedStatus);
     const nextIndex = (currentIndex + 1) % statusOptions.length;
@@ -86,14 +100,15 @@ export function ServicosList() {
   return (
     <div className="space-y-3">
       {servicos.map((servico, index) => {
-        // Guard Clauses for critical fields
         const safeStatus = servico.status || 'PENDENTE';
         const config = statusConfig[safeStatus] || unknownStatusConfig;
 
-        // Ensure date exists
         const dateDisplay = servico.data_entrada?.toDate
           ? format(servico.data_entrada.toDate(), "dd/MM/yyyy", { locale: ptBR })
           : 'Data desconhecida';
+
+        // Prefer 'tamanhos' object, fallback to 'detalhe_tamanhos' string
+        const tamanhosDisplay = formatTamanhos(servico.tamanhos || servico.detalhe_tamanhos);
 
         return (
           <div
@@ -110,9 +125,9 @@ export function ServicosList() {
                     OP: {servico.numero_op}
                   </p>
                 )}
-                {servico.detalhe_tamanhos && (
+                {tamanhosDisplay && (
                   <p className="text-sm text-muted-foreground mt-1">
-                    {servico.detalhe_tamanhos}
+                    {tamanhosDisplay}
                   </p>
                 )}
               </div>
