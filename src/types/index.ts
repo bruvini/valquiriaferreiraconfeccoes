@@ -31,6 +31,7 @@ export interface PagamentoAjudante {
   nome_ajudante: string;
   data_trabalho: Timestamp;
   valor_pago: number;
+  status?: 'PENDENTE' | 'PAGO'; // Status opcional para retrocompatibilidade
 }
 
 export type StatusServico = 'PENDENTE' | 'EM_ANDAMENTO' | 'CONCLUIDO';

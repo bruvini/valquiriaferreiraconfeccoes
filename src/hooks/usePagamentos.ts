@@ -3,6 +3,7 @@ import {
   collection, 
   addDoc, 
   deleteDoc, 
+  updateDoc,
   doc, 
   onSnapshot,
   query,
@@ -39,12 +40,29 @@ export function usePagamentos() {
     return () => unsubscribe();
   }, []);
 
-  const addPagamento = async (pagamento: Omit<PagamentoAjudante, 'id'>) => {
+  const addPagamento = async (pagamento: Omit<PagamentoAjudante, 'id' | 'status'>) => {
     try {
-      await addDoc(collection(db, 'pagamentos_ajudantes'), pagamento);
+      await addDoc(collection(db, 'pagamentos_ajudantes'), {
+        ...pagamento,
+        status: 'PENDENTE' // Default status for new records
+      });
     } catch (err) {
       console.error('Error adding pagamento:', err);
       throw new Error('Erro ao adicionar pagamento');
+    }
+  };
+
+  const togglePagamentoStatus = async (id: string, currentStatus?: 'PENDENTE' | 'PAGO') => {
+    try {
+      // If status is undefined (legacy), treat as PENDENTE, so toggle to PAGO
+      const newStatus = (!currentStatus || currentStatus === 'PENDENTE') ? 'PAGO' : 'PENDENTE';
+
+      await updateDoc(doc(db, 'pagamentos_ajudantes', id), {
+        status: newStatus
+      });
+    } catch (err) {
+      console.error('Error updating pagamento status:', err);
+      throw new Error('Erro ao atualizar status do pagamento');
     }
   };
 
@@ -65,6 +83,7 @@ export function usePagamentos() {
     error,
     addPagamento,
     deletePagamento,
+    togglePagamentoStatus,
     totalDespesas,
   };
 }
