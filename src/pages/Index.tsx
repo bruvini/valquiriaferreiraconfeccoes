@@ -26,37 +26,43 @@ const Index = () => {
         </p>
       </div>
 
-      {/* Summary Cards */}
-      <div className="space-y-4 mb-8">
+      {/* Summary Cards - Horizontal Scroll */}
+      <div className="flex flex-row gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide -mx-4 px-4 mb-8">
         {loading ? (
           <>
-            <div className="h-28 bg-muted rounded-2xl animate-pulse" />
-            <div className="h-28 bg-muted rounded-2xl animate-pulse" />
-            <div className="h-28 bg-muted rounded-2xl animate-pulse" />
+            <div className="h-28 min-w-[280px] bg-muted rounded-2xl animate-pulse flex-shrink-0 snap-start" />
+            <div className="h-28 min-w-[280px] bg-muted rounded-2xl animate-pulse flex-shrink-0 snap-start" />
+            <div className="h-28 min-w-[280px] bg-muted rounded-2xl animate-pulse flex-shrink-0 snap-start" />
           </>
         ) : (
           <>
-            <SummaryCard
-              title="Serviços a Receber"
-              value={totalAReceber}
-              icon={DollarSign}
-              variant="gold"
-              subtitle="Pendentes + Em produção"
-            />
-            <SummaryCard
-              title="Produção Total (Receita)"
-              value={producaoTotal}
-              icon={TrendingUp}
-              variant="copper"
-              subtitle="Todos os serviços"
-            />
-            <SummaryCard
-              title="Despesas com Ajudantes"
-              value={totalDespesas}
-              icon={Users}
-              variant="neutral"
-              subtitle="Total de diárias"
-            />
+            <div className="min-w-[280px] flex-shrink-0 snap-start">
+              <SummaryCard
+                title="Serviços a Receber"
+                value={totalAReceber}
+                icon={DollarSign}
+                variant="gold"
+                subtitle="Pendentes + Em produção"
+              />
+            </div>
+            <div className="min-w-[280px] flex-shrink-0 snap-start">
+              <SummaryCard
+                title="Produção Total (Receita)"
+                value={producaoTotal}
+                icon={TrendingUp}
+                variant="copper"
+                subtitle="Todos os serviços"
+              />
+            </div>
+            <div className="min-w-[280px] flex-shrink-0 snap-start">
+              <SummaryCard
+                title="Despesas com Ajudantes"
+                value={totalDespesas}
+                icon={Users}
+                variant="neutral"
+                subtitle="Total de diárias"
+              />
+            </div>
           </>
         )}
       </div>

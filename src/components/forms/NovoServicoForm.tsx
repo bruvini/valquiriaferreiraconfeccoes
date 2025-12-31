@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,19 +6,105 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useServicos } from '@/hooks/useServicos';
 import { useToast } from '@/hooks/use-toast';
-import { Package, Calculator } from 'lucide-react';
+import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
+import { useVoiceAI } from '@/hooks/useVoiceAI';
+import { Package, Calculator, Mic, MicOff, Loader2, Sparkles } from 'lucide-react';
+
+const OPENAI_KEY_STORAGE = 'valquiria_openai_key';
 
 export function NovoServicoForm() {
   const [fornecedor, setFornecedor] = useState('');
+  const [cliente, setCliente] = useState('');
   const [tipoPeca, setTipoPeca] = useState('');
+  const [tipoTecido, setTipoTecido] = useState('');
   const [detalheTamanhos, setDetalheTamanhos] = useState('');
   const [quantidade, setQuantidade] = useState('');
   const [valorUnitario, setValorUnitario] = useState('');
+  const [observacoes, setObservacoes] = useState('');
   const [loading, setLoading] = useState(false);
+  const [apiKey, setApiKey] = useState('');
+  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
 
   const { addServico } = useServicos();
   const { toast } = useToast();
   const navigate = useNavigate();
+  
+  const { isListening, transcript, error: speechError, startListening, stopListening } = useSpeechRecognition();
+  const { isProcessing, error: aiError, processTranscript } = useVoiceAI();
+
+  // Load API key from localStorage on mount
+  useEffect(() => {
+    const savedKey = localStorage.getItem(OPENAI_KEY_STORAGE);
+    if (savedKey) {
+      setApiKey(savedKey);
+    }
+  }, []);
+
+  // Process transcript when listening stops and we have text
+  useEffect(() => {
+    if (!isListening && transcript && apiKey) {
+      handleProcessVoice(transcript);
+    }
+  }, [isListening, transcript]);
+
+  const handleProcessVoice = async (text: string) => {
+    const result = await processTranscript(text, apiKey);
+    
+    if (result) {
+      // Fill form fields with AI results
+      if (result.fornecedor) setFornecedor(result.fornecedor);
+      if (result.cliente) setCliente(result.cliente);
+      if (result.tipo_peca) setTipoPeca(result.tipo_peca);
+      if (result.tipo_tecido) setTipoTecido(result.tipo_tecido);
+      if (result.observacoes) setObservacoes(result.observacoes);
+      if (result.preco_unitario) setValorUnitario(result.preco_unitario.toString().replace('.', ','));
+      
+      // Process sizes
+      if (result.tamanhos && result.tamanhos.length > 0) {
+        const tamanhosText = result.tamanhos
+          .map(t => `${t.quantidade} ${t.tamanho}`)
+          .join(', ');
+        setDetalheTamanhos(tamanhosText);
+        
+        // Calculate total quantity
+        const totalQtd = result.tamanhos.reduce((sum, t) => sum + t.quantidade, 0);
+        setQuantidade(totalQtd.toString());
+      }
+
+      toast({
+        title: "Formulário preenchido!",
+        description: "Confira os dados e ajuste se necessário.",
+      });
+    }
+  };
+
+  const handleVoiceClick = () => {
+    if (!apiKey) {
+      setShowApiKeyInput(true);
+      toast({
+        title: "Chave da OpenAI necessária",
+        description: "Configure sua chave de API para usar o recurso de voz.",
+      });
+      return;
+    }
+
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening();
+    }
+  };
+
+  const handleSaveApiKey = () => {
+    if (apiKey.trim()) {
+      localStorage.setItem(OPENAI_KEY_STORAGE, apiKey.trim());
+      setShowApiKeyInput(false);
+      toast({
+        title: "Chave salva!",
+        description: "Agora você pode usar o preenchimento por voz.",
+      });
+    }
+  };
 
   const quantidadeNum = parseInt(quantidade) || 0;
   const valorNum = parseFloat(valorUnitario.replace(',', '.')) || 0;
@@ -35,7 +121,7 @@ export function NovoServicoForm() {
     if (!fornecedor || !tipoPeca || !quantidade || !valorUnitario) {
       toast({
         title: "Campos obrigatórios",
-        description: "Por favor, preencha todos os campos.",
+        description: "Por favor, preencha todos os campos obrigatórios.",
         variant: "destructive",
       });
       return;
@@ -45,11 +131,14 @@ export function NovoServicoForm() {
     try {
       await addServico({
         fornecedor,
+        cliente,
         tipo_peca: tipoPeca,
+        tipo_tecido: tipoTecido,
         detalhe_tamanhos: detalheTamanhos,
         quantidade_total: quantidadeNum,
         valor_unitario: valorNum,
         status: 'Pendente',
+        observacoes,
       });
       
       toast({
@@ -71,9 +160,90 @@ export function NovoServicoForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
+      {/* Voice AI Button */}
+      <div className="space-y-3">
+        <Button
+          type="button"
+          variant={isListening ? "destructive" : "gold"}
+          size="lg"
+          className="w-full h-14 text-lg relative overflow-hidden"
+          onClick={handleVoiceClick}
+          disabled={isProcessing}
+        >
+          {isProcessing ? (
+            <>
+              <Loader2 className="w-6 h-6 mr-2 animate-spin" />
+              Processando com IA...
+            </>
+          ) : isListening ? (
+            <>
+              <MicOff className="w-6 h-6 mr-2" />
+              Parar de Gravar
+              <span className="absolute top-1 right-2 w-3 h-3 bg-red-500 rounded-full animate-pulse" />
+            </>
+          ) : (
+            <>
+              <Mic className="w-6 h-6 mr-2" />
+              <Sparkles className="w-4 h-4 mr-1" />
+              Preencher com IA
+            </>
+          )}
+        </Button>
+
+        {isListening && (
+          <div className="bg-accent/50 rounded-xl p-4 border border-copper/20 animate-fade-in">
+            <p className="text-sm text-muted-foreground mb-1">Ouvindo...</p>
+            <p className="text-foreground font-medium">
+              {transcript || "Fale os detalhes do serviço..."}
+            </p>
+          </div>
+        )}
+
+        {(speechError || aiError) && (
+          <div className="bg-destructive/10 text-destructive rounded-xl p-3 text-sm">
+            {speechError || aiError}
+          </div>
+        )}
+      </div>
+
+      {/* API Key Input (shown when needed) */}
+      {showApiKeyInput && (
+        <div className="bg-muted rounded-xl p-4 space-y-3 animate-fade-in">
+          <Label className="text-sm text-copper">Chave da API OpenAI</Label>
+          <Input
+            type="password"
+            placeholder="sk-..."
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <Button type="button" variant="gold" size="sm" onClick={handleSaveApiKey}>
+              Salvar Chave
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => setShowApiKeyInput(false)}>
+              Cancelar
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Sua chave fica salva apenas neste dispositivo.
+          </p>
+        </div>
+      )}
+
+      {/* Divider */}
+      <div className="relative py-2">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-border" />
+        </div>
+        <div className="relative flex justify-center text-xs uppercase">
+          <span className="bg-background px-2 text-muted-foreground">ou preencha manualmente</span>
+        </div>
+      </div>
+
+      {/* Fornecedor */}
       <div className="space-y-2">
         <Label htmlFor="fornecedor" className="text-base font-medium text-copper">
-          Fornecedor
+          Fornecedor *
         </Label>
         <Input
           id="fornecedor"
@@ -83,21 +253,49 @@ export function NovoServicoForm() {
         />
       </div>
 
+      {/* Cliente */}
       <div className="space-y-2">
-        <Label htmlFor="tipoPeca" className="text-base font-medium text-copper">
-          Tipo de Peça
+        <Label htmlFor="cliente" className="text-base font-medium text-copper">
+          Cliente
         </Label>
         <Input
-          id="tipoPeca"
-          placeholder="Ex: Camisa Polo, Jaleco..."
-          value={tipoPeca}
-          onChange={(e) => setTipoPeca(e.target.value)}
+          id="cliente"
+          placeholder="Nome do cliente final (opcional)"
+          value={cliente}
+          onChange={(e) => setCliente(e.target.value)}
         />
       </div>
 
+      {/* Tipo de Peça & Tipo de Tecido */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="tipoPeca" className="text-base font-medium text-copper">
+            Tipo de Peça *
+          </Label>
+          <Input
+            id="tipoPeca"
+            placeholder="Ex: Camisa Polo"
+            value={tipoPeca}
+            onChange={(e) => setTipoPeca(e.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="tipoTecido" className="text-base font-medium text-copper">
+            Tipo de Tecido
+          </Label>
+          <Input
+            id="tipoTecido"
+            placeholder="Ex: Malha, Jeans"
+            value={tipoTecido}
+            onChange={(e) => setTipoTecido(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* Grade de Tamanhos */}
       <div className="space-y-2">
         <Label htmlFor="tamanhos" className="text-base font-medium text-copper">
-          Descrição dos Tamanhos (opcional)
+          Grade de Tamanhos
         </Label>
         <Textarea
           id="tamanhos"
@@ -108,10 +306,11 @@ export function NovoServicoForm() {
         />
       </div>
 
+      {/* Quantidade e Valor */}
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="quantidade" className="text-base font-medium text-copper">
-            Quantidade Total
+            Quantidade Total *
           </Label>
           <Input
             id="quantidade"
@@ -125,7 +324,7 @@ export function NovoServicoForm() {
 
         <div className="space-y-2">
           <Label htmlFor="valor" className="text-base font-medium text-copper">
-            Valor por Peça (R$)
+            Valor por Peça (R$) *
           </Label>
           <Input
             id="valor"
@@ -136,6 +335,20 @@ export function NovoServicoForm() {
             onChange={(e) => setValorUnitario(e.target.value)}
           />
         </div>
+      </div>
+
+      {/* Observações */}
+      <div className="space-y-2">
+        <Label htmlFor="observacoes" className="text-base font-medium text-copper">
+          Observações
+        </Label>
+        <Textarea
+          id="observacoes"
+          placeholder="Detalhes adicionais, prazo, etc."
+          value={observacoes}
+          onChange={(e) => setObservacoes(e.target.value)}
+          className="min-h-[80px] text-base"
+        />
       </div>
 
       {/* Total em Destaque */}
