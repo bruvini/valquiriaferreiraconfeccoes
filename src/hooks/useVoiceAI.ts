@@ -8,7 +8,8 @@ interface ParsedService {
   tipo_peca: string | null;
   tipo_tecido: string | null;
   observacoes: string | null;
-  tamanhos: string | null;
+  // Updated to match new structure
+  tamanhos: Record<string, number> | null;
   quantidade: number | null;
   preco_unitario: number | null;
 }
@@ -21,7 +22,6 @@ export function useVoiceAI() {
     setIsProcessing(true);
     setError(null);
 
-    // Hardcoded API key for testing environment as requested
     const apiKey = "AIzaSyAThGsUbxHVPIKnEFlCacARZkQtrJnOsVE";
 
     if (!apiKey) {
@@ -42,7 +42,7 @@ export function useVoiceAI() {
       - fornecedor (string),
       - tipo_peca (string),
       - tipo_tecido (string),
-      - tamanhos (string ex: '2 P, 3 M'),
+      - tamanhos (objeto JSON onde a chave é a sigla do tamanho padronizada para PP, P, M, G, GG, EXG e o valor é a quantidade number. Exemplo: { "P": 2, "M": 5 }),
       - quantidade (number total),
       - preco_unitario (number),
       - observacoes (string).
@@ -53,7 +53,6 @@ export function useVoiceAI() {
       const response = await result.response;
       const text = response.text();
 
-      // Fix: Clean markdown code blocks if present before parsing
       const cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim();
 
       const parsed = JSON.parse(cleanedText) as ParsedService;
@@ -61,12 +60,6 @@ export function useVoiceAI() {
 
     } catch (err) {
       console.error('Erro bruto da IA:', err);
-      // If the error was parsing, we might want to log the text we tried to parse
-      // We can't access 'text' easily here if the error was upstream, but if it was JSON.parse:
-      // We can assume 'err' might give clues.
-      // Ideally we would log the 'text' variable but it's scoped in the try block.
-      // For debug purposes, let's just log what we have.
-
       setError('Erro ao processar o áudio com IA.');
       return null;
     } finally {

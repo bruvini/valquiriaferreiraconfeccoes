@@ -12,6 +12,8 @@ import { Package, Calculator, Mic, MicOff, Loader2, Sparkles, Camera, Image as I
 import { storage } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
+const SIZES = ['PP', 'P', 'M', 'G', 'GG', 'EXG'];
+
 export function NovoServicoForm() {
   const [numeroOP, setNumeroOP] = useState('');
   const [dataChegada, setDataChegada] = useState(new Date().toISOString().split('T')[0]);
@@ -19,8 +21,13 @@ export function NovoServicoForm() {
   const [cliente, setCliente] = useState('');
   const [tipoPeca, setTipoPeca] = useState('');
   const [tipoTecido, setTipoTecido] = useState('');
-  const [detalheTamanhos, setDetalheTamanhos] = useState('');
-  const [quantidade, setQuantidade] = useState('');
+
+  // Replaced detailed text string with object state
+  const [tamanhos, setTamanhos] = useState<Record<string, number>>({
+    'PP': 0, 'P': 0, 'M': 0, 'G': 0, 'GG': 0, 'EXG': 0
+  });
+
+  const [quantidade, setQuantidade] = useState(0); // number state
   const [valorUnitario, setValorUnitario] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [fotoOP, setFotoOP] = useState<File | null>(null);
@@ -42,11 +49,16 @@ export function NovoServicoForm() {
     }
   }, [isListening, transcript]);
 
+  // Auto-sum quantity when tamanhos change
+  useEffect(() => {
+    const total = Object.values(tamanhos).reduce((acc, curr) => acc + (curr || 0), 0);
+    setQuantidade(total);
+  }, [tamanhos]);
+
   const handleProcessVoice = async (text: string) => {
     const result = await processTranscript(text);
     
     if (result) {
-      // Fill form fields with AI results
       if (result.numero_op) setNumeroOP(result.numero_op);
       if (result.fornecedor) setFornecedor(result.fornecedor);
       if (result.cliente) setCliente(result.cliente);
@@ -55,14 +67,17 @@ export function NovoServicoForm() {
       if (result.observacoes) setObservacoes(result.observacoes);
       if (result.preco_unitario) setValorUnitario(result.preco_unitario.toString().replace('.', ','));
       
-      // Process sizes (now a string directly from AI)
+      // Map AI sizes to grid
       if (result.tamanhos) {
-        setDetalheTamanhos(result.tamanhos);
-      }
-
-      // Quantity (now a number directly from AI)
-      if (result.quantidade) {
-        setQuantidade(result.quantidade.toString());
+        const newSizes = { ...tamanhos };
+        Object.entries(result.tamanhos).forEach(([key, val]) => {
+          // Normalize key to upper case to match our keys
+          const normKey = key.toUpperCase();
+          if (newSizes.hasOwnProperty(normKey)) {
+             newSizes[normKey] = val;
+          }
+        });
+        setTamanhos(newSizes);
       }
 
       toast({
@@ -94,9 +109,16 @@ export function NovoServicoForm() {
     }
   };
 
-  const quantidadeNum = parseInt(quantidade) || 0;
+  const handleSizeChange = (size: string, value: string) => {
+    const numValue = parseInt(value) || 0;
+    setTamanhos(prev => ({
+      ...prev,
+      [size]: Math.max(0, numValue)
+    }));
+  };
+
   const valorNum = parseFloat(valorUnitario.replace(',', '.')) || 0;
-  const valorTotal = quantidadeNum * valorNum;
+  const valorTotal = quantidade * valorNum;
 
   const formattedTotal = new Intl.NumberFormat('pt-BR', {
     style: 'currency',
@@ -106,10 +128,10 @@ export function NovoServicoForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!fornecedor || !tipoPeca || !quantidade || !valorUnitario) {
+    if (!fornecedor || !tipoPeca || quantidade === 0 || !valorUnitario) {
       toast({
         title: "Campos obrigatórios",
-        description: "Por favor, preencha todos os campos obrigatórios.",
+        description: "Preencha fornecedor, peça, valor e pelo menos um tamanho.",
         variant: "destructive",
       });
       return;
@@ -132,8 +154,8 @@ export function NovoServicoForm() {
         cliente,
         tipo_peca: tipoPeca,
         tipo_tecido: tipoTecido,
-        detalhe_tamanhos: detalheTamanhos,
-        quantidade_total: quantidadeNum,
+        tamanhos: tamanhos, // New object structure
+        quantidade_total: quantidade,
         valor_unitario: valorNum,
         status: 'PENDENTE',
         observacoes,
@@ -322,34 +344,46 @@ export function NovoServicoForm() {
         </div>
       </div>
 
-      {/* Grade de Tamanhos */}
-      <div className="space-y-2">
-        <Label htmlFor="tamanhos" className="text-base font-medium text-copper">
+      {/* Grade de Tamanhos (New Grid Layout) */}
+      <div className="space-y-3">
+        <Label className="text-base font-medium text-copper">
           Grade de Tamanhos
         </Label>
-        <Textarea
-          id="tamanhos"
-          placeholder="Ex: 10 P, 15 M, 5 GG"
-          value={detalheTamanhos}
-          onChange={(e) => setDetalheTamanhos(e.target.value)}
-          className="min-h-[80px] text-base"
-        />
+        <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+          {SIZES.map((size) => (
+            <div key={size} className="space-y-1">
+              <Label htmlFor={`size-${size}`} className="text-xs text-muted-foreground text-center block">
+                {size}
+              </Label>
+              <Input
+                id={`size-${size}`}
+                type="number"
+                inputMode="numeric"
+                min="0"
+                className="text-center font-medium"
+                value={tamanhos[size] === 0 ? '' : tamanhos[size]}
+                placeholder="0"
+                onChange={(e) => handleSizeChange(size, e.target.value)}
+              />
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Quantidade e Valor */}
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="quantidade" className="text-base font-medium text-copper">
-            Quantidade Total *
+            Quantidade Total
           </Label>
           <Input
             id="quantidade"
             type="number"
-            inputMode="numeric"
-            placeholder="0"
+            readOnly
+            className="bg-muted font-bold text-foreground"
             value={quantidade}
-            onChange={(e) => setQuantidade(e.target.value)}
           />
+          <p className="text-[10px] text-muted-foreground">*Calculado automaticamente</p>
         </div>
 
         <div className="space-y-2">
@@ -394,7 +428,7 @@ export function NovoServicoForm() {
             {formattedTotal}
           </p>
           <p className="text-sm text-primary-foreground/70 mt-1">
-            {quantidadeNum} peças × R$ {valorNum.toFixed(2).replace('.', ',')}
+            {quantidade} peças × R$ {valorNum.toFixed(2).replace('.', ',')}
           </p>
         </div>
       )}
