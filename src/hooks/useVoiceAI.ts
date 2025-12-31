@@ -22,9 +22,10 @@ export function useVoiceAI() {
     setIsProcessing(true);
     setError(null);
 
-    const apiKey = "AIzaSyAThGsUbxHVPIKnEFlCacARZkQtrJnOsVE";
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
     if (!apiKey) {
+      console.error('API Key missing. Make sure VITE_GEMINI_API_KEY is set in .env');
       setError('Chave de API do Gemini não configurada.');
       return null;
     }

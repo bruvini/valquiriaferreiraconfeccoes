@@ -164,37 +164,43 @@ const Index = () => {
         </div>
       </div>
 
-      {/* Summary Cards - Vertical Stack Mobile / Grid Desktop */}
-      <div className="flex flex-col gap-4 w-full md:grid md:grid-cols-3 mb-8">
+      {/* Summary Cards - Horizontal Scroll Mobile / Grid Desktop */}
+      <div className="flex flex-row gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide md:grid md:grid-cols-3 md:overflow-visible md:pb-0 mb-8 w-full">
         {loading ? (
           <>
-            <div className="h-28 w-full bg-muted rounded-2xl animate-pulse" />
-            <div className="h-28 w-full bg-muted rounded-2xl animate-pulse" />
-            <div className="h-28 w-full bg-muted rounded-2xl animate-pulse" />
+            <div className="h-28 min-w-[280px] w-full md:min-w-0 bg-muted rounded-2xl animate-pulse snap-center" />
+            <div className="h-28 min-w-[280px] w-full md:min-w-0 bg-muted rounded-2xl animate-pulse snap-center" />
+            <div className="h-28 min-w-[280px] w-full md:min-w-0 bg-muted rounded-2xl animate-pulse snap-center" />
           </>
         ) : (
           <>
-            <SummaryCard
-              title="Serviços a Receber"
-              value={totalAReceber}
-              icon={DollarSign}
-              variant="gold"
-              subtitle="Pendentes + Em produção"
-            />
-            <SummaryCard
-              title="Produção Total (Receita)"
-              value={producaoTotal}
-              icon={TrendingUp}
-              variant="copper"
-              subtitle="Todos os serviços"
-            />
-            <SummaryCard
-              title="Despesas com Ajudantes"
-              value={totalDespesas}
-              icon={Users}
-              variant="neutral"
-              subtitle="Total de diárias"
-            />
+            <div className="min-w-[85vw] md:min-w-0 snap-center">
+              <SummaryCard
+                title="Serviços a Receber"
+                value={totalAReceber}
+                icon={DollarSign}
+                variant="gold"
+                subtitle="Pendentes + Em produção"
+              />
+            </div>
+            <div className="min-w-[85vw] md:min-w-0 snap-center">
+              <SummaryCard
+                title="Produção Total (Receita)"
+                value={producaoTotal}
+                icon={TrendingUp}
+                variant="copper"
+                subtitle="Todos os serviços"
+              />
+            </div>
+            <div className="min-w-[85vw] md:min-w-0 snap-center">
+              <SummaryCard
+                title="Despesas com Ajudantes"
+                value={totalDespesas}
+                icon={Users}
+                variant="neutral"
+                subtitle="Total de diárias"
+              />
+            </div>
           </>
         )}
       </div>
