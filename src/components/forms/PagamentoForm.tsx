@@ -6,6 +6,7 @@ import { usePagamentos } from '@/hooks/usePagamentos';
 import { useToast } from '@/hooks/use-toast';
 import { Timestamp } from 'firebase/firestore';
 import { UserPlus } from 'lucide-react';
+import { parseDateToNoon } from '@/lib/utils';
 
 export function PagamentoForm() {
   const [nomeAjudante, setNomeAjudante] = useState('');
@@ -34,7 +35,7 @@ export function PagamentoForm() {
     try {
       await addPagamento({
         nome_ajudante: nomeAjudante,
-        data_trabalho: Timestamp.fromDate(new Date(dataTrabalho)),
+        data_trabalho: Timestamp.fromDate(parseDateToNoon(dataTrabalho)),
         valor_pago: valorNum,
       });
       

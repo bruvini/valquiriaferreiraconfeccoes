@@ -11,6 +11,8 @@ import { useVoiceAI } from '@/hooks/useVoiceAI';
 import { Package, Calculator, Mic, MicOff, Loader2, Sparkles, Camera, Image as ImageIcon } from 'lucide-react';
 import { storage } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { parseDateToNoon } from '@/lib/utils';
+import { Timestamp } from 'firebase/firestore';
 
 const SIZES = ['PP', 'P', 'M', 'G', 'GG', 'EXG'];
 
@@ -139,6 +141,9 @@ export function NovoServicoForm() {
 
     setLoading(true);
     try {
+      // Use helper to fix timezone off-by-one error
+      const dataEntradaDate = parseDateToNoon(dataChegada);
+
       let fotoUrl = null;
 
       if (fotoOP) {
@@ -149,7 +154,8 @@ export function NovoServicoForm() {
 
       await addServico({
         numero_op: numeroOP,
-        data_chegada: dataChegada,
+        data_chegada: dataChegada, // Keeps string for display if needed
+        data_entrada: Timestamp.fromDate(dataEntradaDate), // Ensure data_entrada (Firestore) is correct
         fornecedor,
         cliente,
         tipo_peca: tipoPeca,

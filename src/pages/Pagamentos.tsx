@@ -9,6 +9,7 @@ import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
+import { parseDateToStartOfDay, parseDateToEndOfDay } from '@/lib/utils';
 
 const Pagamentos = () => {
   const navigate = useNavigate();
@@ -27,11 +28,8 @@ const Pagamentos = () => {
     // Normalize time to start of day for comparison consistency
     date.setHours(0, 0, 0, 0);
 
-    let start = startDate ? new Date(startDate) : null;
-    if (start) start.setHours(0, 0, 0, 0);
-
-    let end = endDate ? new Date(endDate) : null;
-    if (end) end.setHours(23, 59, 59, 999);
+    const start = startDate ? parseDateToStartOfDay(startDate) : null;
+    const end = endDate ? parseDateToEndOfDay(endDate) : null;
 
     if (start && date < start) return false;
     if (end && date > end) return false;
