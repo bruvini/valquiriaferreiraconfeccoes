@@ -8,6 +8,7 @@ import { Servico } from '@/types';
 import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { parseDateToStartOfDay, parseDateToEndOfDay } from '@/lib/utils';
 
 const Index = () => {
   const { servicos, loading: loadingServicos, updateServicoStatus } = useServicos();
@@ -25,10 +26,8 @@ const Index = () => {
     let filteredPagamentos = pagamentos;
 
     if (startDate && endDate) {
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      // Adjust end date to include the full day
-      end.setHours(23, 59, 59, 999);
+      const start = parseDateToStartOfDay(startDate);
+      const end = parseDateToEndOfDay(endDate);
 
       filteredServicos = servicos.filter(s => {
         if (!s.data_entrada) return false;

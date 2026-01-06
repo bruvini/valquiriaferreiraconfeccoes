@@ -40,15 +40,17 @@ export function useServicos() {
     return () => unsubscribe();
   }, []);
 
-  const addServico = async (servico: Omit<Servico, 'id' | 'data_entrada' | 'valor_total_lote'>) => {
+  // Updated type definition to allow data_entrada override
+  const addServico = async (servico: Omit<Servico, 'id' | 'data_entrada' | 'valor_total_lote'> & { data_entrada?: Timestamp }) => {
     try {
       const valor_total_lote = servico.quantidade_total * servico.valor_unitario;
       await addDoc(collection(db, 'servicos'), {
         ...servico,
         valor_total_lote,
-        data_entrada: Timestamp.now(),
+        // Use provided data_entrada (from parseDateToNoon) or fallback to now
+        data_entrada: servico.data_entrada || Timestamp.now(),
         // Ensure defaults for new fields if not provided (though optional in type)
-        status: 'PENDENTE',
+        status: servico.status || 'PENDENTE',
       });
     } catch (err) {
       console.error('Error adding servico:', err);
