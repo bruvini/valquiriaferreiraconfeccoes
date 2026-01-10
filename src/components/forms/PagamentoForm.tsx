@@ -1,56 +1,78 @@
 import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { usePagamentos } from '@/hooks/usePagamentos';
 import { useToast } from '@/hooks/use-toast';
 import { Timestamp } from 'firebase/firestore';
-import { UserPlus } from 'lucide-react';
+import { UserPlus, Loader2 } from 'lucide-react';
 import { parseDateToNoon } from '@/lib/utils';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+
+const formSchema = z.object({
+  nome_ajudante: z.string().min(1, "Selecione quem foi o ajudante."),
+  data_trabalho: z.string().min(1, "A data informada não parece correta."),
+  valor_pago: z.string().min(1, "Digite o valor.").refine((val) => {
+    const num = parseFloat(val.replace(',', '.'));
+    return !isNaN(num) && num > 0;
+  }, "O valor deve ser maior que zero."),
+});
+
+type FormValues = z.infer<typeof formSchema>;
 
 export function PagamentoForm() {
-  const [nomeAjudante, setNomeAjudante] = useState('');
-  const [dataTrabalho, setDataTrabalho] = useState('');
-  const [valorPago, setValorPago] = useState('');
   const [loading, setLoading] = useState(false);
-
   const { addPagamento } = usePagamentos();
   const { toast } = useToast();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!nomeAjudante || !dataTrabalho || !valorPago) {
-      toast({
-        title: "Campos obrigatórios",
-        description: "Por favor, preencha todos os campos.",
-        variant: "destructive",
-      });
-      return;
-    }
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      nome_ajudante: '',
+      data_trabalho: '',
+      valor_pago: '',
+    },
+  });
 
-    const valorNum = parseFloat(valorPago.replace(',', '.')) || 0;
-
+  const onSubmit = async (data: FormValues) => {
     setLoading(true);
     try {
+      const valorNum = parseFloat(data.valor_pago.replace(',', '.'));
+
       await addPagamento({
-        nome_ajudante: nomeAjudante,
-        data_trabalho: Timestamp.fromDate(parseDateToNoon(dataTrabalho)),
+        nome_ajudante: data.nome_ajudante,
+        data_trabalho: Timestamp.fromDate(parseDateToNoon(data.data_trabalho)),
         valor_pago: valorNum,
+        status: 'PENDENTE' // Default status per previous logic
       });
       
       toast({
-        title: "Pagamento registrado!",
-        description: `${nomeAjudante} - R$ ${valorNum.toFixed(2).replace('.', ',')}`,
+        title: "Tudo certo! Pagamento registrado.",
+        description: `${data.nome_ajudante} - R$ ${valorNum.toFixed(2).replace('.', ',')}`,
+        className: "bg-green-50 border-green-200 text-green-900",
       });
       
-      setNomeAjudante('');
-      setDataTrabalho('');
-      setValorPago('');
-    } catch (error) {
+      form.reset();
+    } catch (error: any) {
+      console.error(error);
+      let errorMessage = "Não consegui salvar agora. Tente novamente em alguns instantes.";
+
+      if (error?.message?.includes('offline') || !navigator.onLine) {
+         errorMessage = "Parece que estamos sem internet. Verifique sua conexão.";
+      }
+
       toast({
         title: "Erro ao salvar",
-        description: "Tente novamente.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -59,55 +81,74 @@ export function PagamentoForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
-      <div className="space-y-2">
-        <Label htmlFor="nome" className="text-base font-medium text-copper">
-          Quem trabalhou?
-        </Label>
-        <Input
-          id="nome"
-          placeholder="Nome da ajudante"
-          value={nomeAjudante}
-          onChange={(e) => setNomeAjudante(e.target.value)}
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+        <FormField
+          control={form.control}
+          name="nome_ajudante"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-base font-medium text-copper">Quem trabalhou?</FormLabel>
+              <FormControl>
+                <Input placeholder="Nome da ajudante" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="data" className="text-base font-medium text-copper">
-          Qual dia?
-        </Label>
-        <Input
-          id="data"
-          type="date"
-          value={dataTrabalho}
-          onChange={(e) => setDataTrabalho(e.target.value)}
+        <FormField
+          control={form.control}
+          name="data_trabalho"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-base font-medium text-copper">Qual dia?</FormLabel>
+              <FormControl>
+                <Input type="date" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="valorPago" className="text-base font-medium text-copper">
-          Valor pago (R$)
-        </Label>
-        <Input
-          id="valorPago"
-          type="text"
-          inputMode="decimal"
-          placeholder="0,00"
-          value={valorPago}
-          onChange={(e) => setValorPago(e.target.value)}
+        <FormField
+          control={form.control}
+          name="valor_pago"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-base font-medium text-copper">Valor pago (R$)</FormLabel>
+              <FormControl>
+                <Input
+                  inputMode="decimal"
+                  placeholder="0,00"
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
 
-      <Button
-        type="submit"
-        variant="copper"
-        size="lg"
-        className="w-full"
-        disabled={loading}
-      >
-        <UserPlus className="w-5 h-5" />
-        {loading ? 'Salvando...' : 'Registrar Pagamento'}
-      </Button>
-    </form>
+        <Button
+          type="submit"
+          variant="copper"
+          size="lg"
+          className="w-full"
+          disabled={loading}
+        >
+          {loading ? (
+             <>
+               <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+               Salvando... aguarde
+             </>
+          ) : (
+             <>
+               <UserPlus className="w-5 h-5 mr-2" />
+               Registrar Pagamento
+             </>
+          )}
+        </Button>
+      </form>
+    </Form>
   );
 }
